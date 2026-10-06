@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laser Studio Admin & Staff Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .code-font {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom Scrollbar for touch-friendly interfaces */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(71, 85, 105, 0.8);
+      border-radius: 4px;
+    }
+    .scanline {
+      background: linear-gradient(to bottom, transparent 50%, rgba(239, 68, 68, 0.08) 51%);
+      background-size: 100% 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-red-500 selection:text-white">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 shadow-lg">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-red-900/30">
+          <i class="fa-solid fa-bolt text-lg animate-pulse"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-base md:text-lg text-slate-100 leading-none">LaserStudio <span class="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded ml-1 font-mono uppercase">Admin HQ</span></h1>
+          <p class="text-xs text-slate-400 mt-0.5">Order Verification & G-Code Dispatch</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Controls -->
+      <div class="flex items-center space-x-2">
+        <button id="simOrderBtn" onclick="simulateNewOrder()" class="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center space-x-1.5 shadow-md shadow-red-900/20 transition active:scale-95">
+          <i class="fa-solid fa-plus-circle"></i>
+          <span class="hidden sm:inline">Simulate</span> Incoming
+        </button>
+        <button onclick="switchTab('sync-modal')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-lg border border-slate-700 transition flex items-center space-x-1">
+          <i class="fa-solid fa-cloud-bolt text-amber-400"></i>
+          <span class="hidden md:inline">Sync Setup</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Portal Body -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+    <!-- Left Column: Order Queue List (4 cols on lg) -->
+    <section class="lg:col-span-4 flex flex-col space-y-4">
+      
+      <!-- Metrics Bar -->
+      <div class="grid grid-cols-3 gap-2">
+        <div class="bg-slate-900/80 border border-slate-800 p-3 rounded-xl text-center">
+          <span class="text-xs text-slate-400 block font-medium">Pending</span>
+          <span id="metricPending" class="text-xl font-extrabold text-amber-400 font-mono">0</span>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 p-3 rounded-xl text-center">
+          <span class="text-xs text-slate-400 block font-medium">Engraving</span>
+          <span id="metricActive" class="text-xl font-extrabold text-blue-400 font-mono">0</span>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 p-3 rounded-xl text-center">
+          <span class="text-xs text-slate-400 block font-medium">Completed</span>
+          <span id="metricComplete" class="text-xl font-extrabold text-emerald-400 font-mono">0</span>
+        </div>
+      </div>
+
+      <!-- Search & Status Filters -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-3">
+        <!-- Search Input -->
+        <div class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-xs"></i>
+          <input type="text" id="orderSearchInput" oninput="renderOrderList()" placeholder="Search Order ID, Customer, Item..." class="w-full bg-slate-950 border border-slate-700/60 rounded-lg pl-8 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-red-500 transition">
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs" id="filterChips">
+          <button onclick="setFilter('ALL')" class="filter-btn active px-2.5 py-1 rounded-md bg-red-600 text-white whitespace-nowrap transition font-medium">All</button>
+          <button onclick="setFilter('PENDING')" class="filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 hover:text-white whitespace-nowrap transition font-medium">Pending</button>
+          <button onclick="setFilter('APPROVED')" class="filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 hover:text-white whitespace-nowrap transition font-medium">Approved</button>
+          <button onclick="setFilter('ENGRAVING')" class="filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 hover:text-white whitespace-nowrap transition font-medium">Engraving</button>
+          <button onclick="setFilter('COMPLETED')" class="filter-btn px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 hover:text-white whitespace-nowrap transition font-medium">Done</button>
+        </div>
+      </div>
+
+      <!-- Orders Scrollable Queue -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2 flex-1 overflow-y-auto max-h-[500px] lg:max-h-[calc(100vh-280px)] space-y-2" id="orderListContainer">
+        <!-- Order cards inserted dynamically here -->
+      </div>
+    </section>
+
+    <!-- Right Column: Selected Order Detailed Inspector (8 cols on lg) -->
+    <section class="lg:col-span-8 flex flex-col space-y-4">
+      <div id="inspectorEmptyState" class="bg-slate-900/60 border border-dashed border-slate-800 rounded-xl p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+        <div class="w-16 h-16 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-600 text-2xl mb-4">
+          <i class="fa-solid fa-microchip"></i>
+        </div>
+        <h3 class="text-slate-300 font-semibold text-lg">No Order Selected</h3>
+        <p class="text-slate-500 text-xs max-w-sm mt-1">Select an order from the list on the left or tap "Simulate Incoming" to test an order verification flow.</p>
+      </div>
+
+      <!-- Main Order Inspector Wrapper -->
+      <div id="inspectorContent" class="hidden space-y-4">
+        
+        <!-- Order Top Action Banner -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-md">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span id="inspOrderID" class="text-lg font-bold font-mono text-white">#ORD-0000</span>
+              <span id="inspStatusBadge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">PENDING APPROVAL</span>
+            </div>
+            <p id="inspMeta" class="text-xs text-slate-400 mt-1">Customer: <strong id="inspCustomer" class="text-slate-200">--</strong> • Submitted <span id="inspTime">Just now</span></p>
+          </div>
+
+          <!-- Quick Status Actions -->
+          <div class="flex items-center space-x-2">
+            <button onclick="updateOrderStatus('APPROVED')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition shadow flex items-center space-x-1">
+              <i class="fa-solid fa-check-circle"></i>
+              <span>Approve Design</span>
+            </button>
+            <button onclick="updateOrderStatus('ENGRAVING')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition shadow flex items-center space-x-1">
+              <i class="fa-solid fa-play"></i>
+              <span>Start Laser</span>
+            </button>
+            <button onclick="updateOrderStatus('REJECTED')" class="bg-slate-800 hover:bg-red-900/40 text-red-400 hover:text-red-300 border border-slate-700 hover:border-red-700/50 text-xs font-medium px-3 py-2 rounded-lg transition">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inspector Split View (Mockup Preview vs Machine Settings) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <!-- Column 1: High-Res Render & Custom Elements -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                <i class="fa-solid fa-eye text-red-500"></i>
+                <span>Laser Bitmap & Vector Render</span>
+              </h3>
+              <span id="inspItemName" class="text-xs font-mono bg-slate-800 px-2 py-0.5 rounded text-slate-300">Item Name</span>
+            </div>
+
+            <!-- Canvas Renderer Box -->
+            <div class="relative w-full aspect-square bg-slate-950 rounded-xl overflow-hidden mt-3 border border-slate-800 flex items-center justify-center p-2 group">
+              <canvas id="adminPreviewCanvas" class="max-w-full max-h-full object-contain rounded drop-shadow-2xl"></canvas>
+
+              <!-- Laser Alignment Grid overlay -->
+              <div class="absolute inset-0 scanline pointer-events-none border border-red-500/20"></div>
+              <div class="absolute top-2 left-2 text-[10px] font-mono text-red-500/80 bg-black/60 px-1.5 py-0.5 rounded">
+                LASER CAM: <span class="text-emerald-400">READY</span>
+              </div>
+            </div>
+
+            <!-- Design Specifications details -->
+            <div class="mt-3 space-y-1.5 text-xs bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+              <div class="flex justify-between">
+                <span class="text-slate-500">Engraving Mode:</span>
+                <span id="inspMode" class="font-mono text-slate-300">Raster + Vector Line</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500">Target Material:</span>
+                <span id="inspMaterial" class="font-mono text-amber-300">Stainless Steel</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500">Customer Note:</span>
+                <span id="inspNote" class="text-slate-300 italic truncate max-w-[180px]">"Deep burn, centered"</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 2: Machine Data & G-Code Generator -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                  <i class="fa-solid fa-sliders text-amber-500"></i>
+                  <span>Machine Hardware Specs</span>
+                </h3>
+                <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-1.5 py-0.5 rounded">CO2 / Diode Optic</span>
+              </div>
+
+              <!-- Power / Speed Sliders for Admin Adjustments -->
+              <div class="mt-4 space-y-3">
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Laser Power (%)</span>
+                    <span id="valPower" class="font-mono text-red-400 font-bold">75%</span>
+                  </div>
+                  <input type="range" id="inputPower" min="10" max="100" value="75" oninput="updateMachineParam('power', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-red-500">
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Engrave Speed (mm/min)</span>
+                    <span id="valSpeed" class="font-mono text-blue-400 font-bold">3000 mm/m</span>
+                  </div>
+                  <input type="range" id="inputSpeed" min="500" max="10000" step="100" value="3000" oninput="updateMachineParam('speed', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Pass Count</span>
+                    <span id="valPasses" class="font-mono text-amber-400 font-bold">2 Passes</span>
+                  </div>
+                  <input type="range" id="inputPasses" min="1" max="5" value="2" oninput="updateMachineParam('passes', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                </div>
+              </div>
+
+              <!-- Raw Coordinates & Code Block -->
+              <div class="mt-4">
+                <label class="text-[11px] font-semibold text-slate-400 block mb-1">Live G-Code Machine Instructions (GRBL / LightBurn):</label>
+                <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 code-font text-[10px] text-emerald-400/90 h-32 overflow-y-auto leading-relaxed select-all" id="gcodeTerminal">
+                  ; Generating Laser G-Code...
+                </div>
+              </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="mt-4 pt-3 border-t border-slate-800 grid grid-cols-2 gap-2">
+              <button onclick="downloadRasterPNG()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 rounded-lg border border-slate-700 transition flex items-center justify-center space-x-1.5">
+                <i class="fa-solid fa-file-image text-blue-400"></i>
+                <span>Monochrome PNG</span>
+              </button>
+              <button onclick="downloadGCode()" class="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-semibold py-2.5 rounded-lg transition shadow flex items-center justify-center space-x-1.5">
+                <i class="fa-solid fa-download"></i>
+                <span>Export G-Code (.nc)</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Workflow Status Tracker & Staff Remarks -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Internal Staff Log & Workflow Status</h3>
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="updateOrderStatus('PENDING')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20">Set Pending</button>
+            <button onclick="updateOrderStatus('APPROVED')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20">Set Approved</button>
+            <button onclick="updateOrderStatus('ENGRAVING')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20">Set Engraving</button>
+            <button onclick="updateOrderStatus('COMPLETED')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20">Set Ready/Done</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Cloud Sync / Worker Setup Modal -->
+  <div id="syncModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div class="flex items-center space-x-2">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+            <i class="fa-solid fa-cloud"></i>
+          </div>
+          <h3 class="font-bold text-slate-100 text-lg">Connect Phone App & Admin HQ</h3>
+        </div>
+        <button onclick="switchTab('sync-modal')" class="text-slate-400 hover:text-white p-2 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4 text-xs text-slate-300 leading-relaxed">
+        <p>To connect your <strong>Customer Mobile App</strong> and this <strong>Admin HQ App</strong> so customer submissions instantly pop up on your phone, follow these zero-cost steps:</p>
+        
+        <div class="space-y-3 font-mono">
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-amber-400 font-bold block mb-1">Option 1: Free Cloudflare Worker (Recommended)</span>
+            <p class="text-[11px] text-slate-400">1. Create a free Cloudflare account -> Workers & Pages.<br>2. Deploy a lightweight KV storage worker.<br>3. Paste the Worker URL below to link both apps instantly.</p>
+          </div>
+
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-blue-400 font-bold block mb-1">Option 2: Firebase Realtime Database</span>
+            <p class="text-[11px] text-slate-400">Use Firebase Realtime Database REST API endpoint (`https://your-db.firebaseio.com/orders.json`) for instant bi-directional updates.</p>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-2">
+          <label class="block font-semibold text-slate-200">Custom Cloud Endpoint URL:</label>
+          <input type="text" id="syncEndpointInput" placeholder="https://laser-sync.your-subdomain.workers.dev/orders" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-red-500">
+          <p class="text-[10px] text-slate-500">Leave empty to use built-in local simulation engine.</p>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-slate-800 flex justify-end space-x-2">
+        <button onclick="saveSyncSettings()" class="bg-red-600 hover:bg-red-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition">Save Endpoint Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <script>
+    // System Data Store & Mock Datasets
+    let orders = [
+      {
+        id: "ORD-9482",
+        customer: "Alex Mercer",
+        product: "Leather Keychain",
+        material: "Genuine Tan Leather",
+        mode: "Raster Engrave",
+        status: "PENDING",
+        timestamp: Date.now() - 1000 * 60 * 8, // 8 mins ago
+        power: 65,
+        speed: 3500,
+        passes: 1,
+        userText: "MERCER & CO.",
+        font: "Arial",
+        imageType: "logo",
+        note: "Please keep text crisp and centered."
+      },
+      {
+        id: "ORD-9483",
+        customer: "Samantha Reed",
+        product: "Matte Black Flask",
+        material: "Anodized Stainless Steel",
+        mode: "Fiber Laser Vector",
+        status: "APPROVED",
+        timestamp: Date.now() - 1000 * 60 * 32, // 32 mins ago
+        power: 85,
+        speed: 2200,
+        passes: 2,
+        userText: "EST. 1994",
+        font: "Times New Roman",
+        imageType: "crest",
+        note: "High contrast finish required."
+      },
+      {
+        id: "ORD-9484",
+        customer: "Marcus Vance",
+        product: "Cedar Coaster",
+        material: "Natural Cedar Wood",
+        mode: "Deep Burn Raster",
+        status: "ENGRAVING",
+        timestamp: Date.now() - 1000 * 60 * 75, // 1h 15m ago
+        power: 90,
+        speed: 1800,
+        passes: 1,
+        userText: "Vance Cabin 2026",
+        font: "Courier New",
+        imageType: "tree",
+        note: "Coaster set 1 of 4."
+      }
+    ];
+
+    let currentFilter = 'ALL';
+    let selectedOrderId = null;
+
+    // Initialize Application on Load
+    window.onload = function() {
+      renderOrderList();
+      updateMetrics();
+      
+      // Auto selecting first order for immediate preview
+      if (orders.length > 0) {
+        selectOrder(orders[0].id);
+      }
+
+      // Live age timer tick
+      setInterval(() => {
+        renderOrderListAgeOnly();
+      }, 30000);
+    };
+
+    // Filter Switcher
+    function setFilter(status) {
+      currentFilter = status;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-red-600', 'text-white');
+        btn.classList.add('bg-slate-800', 'text-slate-400');
+      });
+      event.target.classList.remove('bg-slate-800', 'text-slate-400');
+      event.target.classList.add('bg-red-600', 'text-white');
+      renderOrderList();
+    }
+
+    function renderOrderList() {
+      const container = document.getElementById('orderListContainer');
+      const search = document.getElementById('orderSearchInput').value.toLowerCase();
+      
+      container.innerHTML = '';
+
+      const filtered = orders.filter(o => {
+        const matchesFilter = (currentFilter === 'ALL') || (o.status === currentFilter);
+        const matchesSearch = o.id.toLowerCase().includes(search) || 
+                              o.customer.toLowerCase().includes(search) || 
+                              o.product.toLowerCase().includes(search);
+        return matchesFilter && matchesSearch;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center text-slate-500 text-xs">
+            No matching orders found.
+          </div>`;
+        return;
+      }
+
+      filtered.forEach(order => {
+        const isSelected = order.id === selectedOrderId;
+        const timeAgo = formatTimeAgo(order.timestamp);
+        
+        let badgeStyle = "bg-amber-500/10 text-amber-400 border-amber-500/30";
+        if (order.status === 'APPROVED') badgeStyle = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+        if (order.status === 'ENGRAVING') badgeStyle = "bg-blue-500/10 text-blue-400 border-blue-500/30";
+        if (order.status === 'COMPLETED') badgeStyle = "bg-purple-500/10 text-purple-400 border-purple-500/30";
+        if (order.status === 'REJECTED') badgeStyle = "bg-red-500/10 text-red-400 border-red-500/30";
+
+        const card = document.createElement('div');
+        card.className = `p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between space-y-2.5 ${
+          isSelected 
+            ? 'bg-slate-800/90 border-red-500/80 shadow-lg shadow-red-950/20' 
+            : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
+        }`;
+        card.onclick = () => selectOrder(order.id);
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-mono font-bold text-xs ${isSelected ? 'text-red-400' : 'text-slate-200'}">${order.id}</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeStyle}">${order.status}</span>
+          </div>
+          <div>
+            <h4 class="text-xs font-semibold text-slate-100">${order.customer}</h4>
+            <p class="text-[11px] text-slate-400">${order.product}</p>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-800/60">
+            <span><i class="fa-regular fa-clock mr-1"></i><span class="time-ago-tag" data-ts="${order.timestamp}">${timeAgo}</span></span>
+            <span class="font-mono text-slate-400">${order.power}% Pwr</span>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function renderOrderListAgeOnly() {
+      document.querySelectorAll('.time-ago-tag').forEach(el => {
+        const ts = parseInt(el.getAttribute('data-ts'));
+        if (ts) el.innerText = formatTimeAgo(ts);
+      });
+    }
+
+    function selectOrder(orderId) {
+      selectedOrderId = orderId;
+      renderOrderList();
+
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      document.getElementById('inspectorEmptyState').classList.add('hidden');
+      document.getElementById('inspectorContent').classList.remove('hidden');
+
+      // Populate Text Fields
+      document.getElementById('inspOrderID').innerText = order.id;
+      document.getElementById('inspCustomer').innerText = order.customer;
+      document.getElementById('inspItemName').innerText = order.product;
+      document.getElementById('inspTime').innerText = formatTimeAgo(order.timestamp);
+      document.getElementById('inspMode').innerText = order.mode;
+      document.getElementById('inspMaterial').innerText = order.material;
+      document.getElementById('inspNote').innerText = order.note ? `"${order.note}"` : "None";
+
+      // Status Badge
+      const badge = document.getElementById('inspStatusBadge');
+      badge.innerText = order.status;
+      badge.className = `px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+        order.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' :
+        order.status === 'ENGRAVING' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
+        order.status === 'COMPLETED' ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' :
+        order.status === 'REJECTED' ? 'bg-red-500/20 text-red-300 border-red-500/40' :
+        'bg-amber-500/20 text-amber-300 border-amber-500/40'
+      }`;
+
+      // Machine Controls
+      document.getElementById('inputPower').value = order.power;
+      document.getElementById('valPower').innerText = `${order.power}%`;
+      
+      document.getElementById('inputSpeed').value = order.speed;
+      document.getElementById('valSpeed').innerText = `${order.speed} mm/m`;
+
+      document.getElementById('inputPasses').value = order.passes;
+      document.getElementById('valPasses').innerText = `${order.passes} Pass${order.passes > 1 ? 'es' : ''}`;
+
+      // Draw Laser Engraving Canvas Simulation
+      drawAdminPreviewCanvas(order);
+      generateGCode(order);
+    }
+
+    function drawAdminPreviewCanvas(order) {
+      const canvas = document.getElementById('adminPreviewCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 400;
+      canvas.height = 400;
+
+      // Dark background representing laser bed
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, 400, 400);
+
+      // Product Silhouette
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      
+      if (order.product.includes('Keychain')) {
+        ctx.strokeRect(100, 140, 200, 120);
+        ctx.beginPath(); ctx.arc(80, 200, 15, 0, Math.PI * 2); ctx.stroke();
+      } else if (order.product.includes('Flask')) {
+        ctx.strokeRect(120, 80, 160, 240);
+        ctx.fillRect(170, 60, 60, 20);
+      } else {
+        ctx.beginPath(); ctx.arc(200, 200, 120, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      // Draw Laser Burn Markings (Simulation)
+      ctx.fillStyle = '#f97316'; // Laser burn warm highlights
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 8;
+
+      // Text Render
+      ctx.font = `bold 24px ${order.font || 'sans-serif'}`;
+      ctx.textAlign = 'center';
+      ctx.fillText(order.userText || "CUSTOM DESIGN", 200, 190);
+
+      // Graphics Symbol Render
+      ctx.beginPath();
+      ctx.arc(200, 230, 22, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#f97316';
+      ctx.stroke();
+
+      ctx.font = '16px FontAwesome';
+      ctx.fillText('★', 200, 235);
+
+      ctx.shadowBlur = 0; // reset
+    }
+
+    function generateGCode(order) {
+      const gcode = `; --- LASERSTUDIO G-CODE DISPATCH ---
+; Order ID: ${order.id}
+; Customer: ${order.customer}
+; Speed: ${order.speed} mm/min | Power: S${Math.round((order.power / 100) * 1000)}
+G21 ; Millimeter units
+G90 ; Absolute positioning
+M5  ; Laser OFF
+
+; Start Engrave Pass 1
+G0 X10.00 Y10.00 F${order.speed}
+M3 S${Math.round((order.power / 100) * 1000)} ; Laser ON
+G1 X100.00 Y10.00
+G1 X100.00 Y50.00
+G1 X10.00 Y50.00
+G1 X10.00 Y10.00
+M5  ; Laser OFF
+
+; Text Vector Outline Cycle
+G0 X35.00 Y25.00
+M3 S${Math.round((order.power / 100) * 1000)}
+G1 X65.00 Y25.00
+M5
+G0 X0 Y0 ; Return Home
+; End of Job`;
+
+      document.getElementById('gcodeTerminal').innerText = gcode;
+    }
+
+    function updateOrderStatus(newStatus) {
+      if (!selectedOrderId) return;
+      const order = orders.find(o => o.id === selectedOrderId);
+      if (order) {
+        order.status = newStatus;
+        selectOrder(order.id);
+        updateMetrics();
+        showToast(`Order ${order.id} updated to ${newStatus}`);
+      }
+    }
+
+    function updateMachineParam(param, val) {
+      if (!selectedOrderId) return;
+      const order = orders.find(o => o.id === selectedOrderId);
+      if (!order) return;
+
+      if (param === 'power') {
+        order.power = parseInt(val);
+        document.getElementById('valPower').innerText = `${val}%`;
+      } else if (param === 'speed') {
+        order.speed = parseInt(val);
+        document.getElementById('valSpeed').innerText = `${val} mm/m`;
+      } else if (param === 'passes') {
+        order.passes = parseInt(val);
+        document.getElementById('valPasses').innerText = `${val} Pass${val > 1 ? 'es' : ''}`;
+      }
+
+      generateGCode(order);
+      renderOrderList();
+    }
+
+    function simulateNewOrder() {
+      const randomNames = ["Emma Watson", "David Miller", "Chloe Bennet", "Liam Neeson", "Sophia Martinez"];
+      const products = [
+        { name: "Leather Keychain", mat: "Tan Italian Leather", mode: "Raster Engrave" },
+        { name: "Matte Black Flask", mat: "Anodized Stainless Steel", mode: "Fiber Vector" },
+        { name: "Wooden Coaster", mat: "Natural Cedar", mode: "Deep Burn" }
+      ];
+
+      const p = products[Math.floor(Math.random() * products.length)];
+      const newId = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const newOrder = {
+        id: newId,
+        customer: randomNames[Math.floor(Math.random() * randomNames.length)],
+        product: p.name,
+        material: p.mat,
+        mode: p.mode,
+        status: "PENDING",
+        timestamp: Date.now(),
+        power: 70 + Math.floor(Math.random() * 20),
+        speed: 2500 + Math.floor(Math.random() * 1000),
+        passes: 1,
+        userText: "SPECIAL MOMENT",
+        font: "Arial",
+        note: "Simulated real-time submission from customer phone app."
+      };
+
+      orders.unshift(newOrder);
+      updateMetrics();
+      selectOrder(newId);
+      showToast(`🔔 New Order Received: ${newId}`);
+    }
+
+    function downloadGCode() {
+      if (!selectedOrderId) return;
+      const content = document.getElementById('gcodeTerminal').innerText;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${selectedOrderId}-laser-job.nc`;
+      a.click();
+      showToast('G-Code downloaded successfully!');
+    }
+
+    function downloadRasterPNG() {
+      const canvas = document.getElementById('adminPreviewCanvas');
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = `${selectedOrderId}-raster.png`;
+      a.click();
+      showToast('Monochrome PNG exported!');
+    }
+
+    // Helper Functions
+    function updateMetrics() {
+      document.getElementById('metricPending').innerText = orders.filter(o => o.status === 'PENDING').length;
+      document.getElementById('metricActive').innerText = orders.filter(o => o.status === 'ENGRAVING').length;
+      document.getElementById('metricComplete').innerText = orders.filter(o => o.status === 'COMPLETED').length;
+    }
+
+    function formatTimeAgo(timestamp) {
+      const diffSecs = Math.floor((Date.now() - timestamp) / 1000);
+      if (diffSecs < 60) return "Just now";
+      if (diffSecs < 3600) return `${Math.floor(diffSecs / 60)}m ago`;
+      return `${Math.floor(diffSecs / 3600)}h ago`;
+    }
+
+    function switchTab(modalId) {
+      const modal = document.getElementById('syncModal');
+      modal.classList.toggle('hidden');
+    }
+
+    function saveSyncSettings() {
+      const url = document.getElementById('syncEndpointInput').value;
+      if (url) {
+        localStorage.setItem('laser_sync_url', url);
+        showToast('Sync endpoint saved!');
+      } else {
+        localStorage.removeItem('laser_sync_url');
+        showToast('Reset to local simulation mode.');
+      }
+      switchTab('sync-modal');
+    }
+
+    function showToast(msg) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = "bg-slate-800 border border-slate-700 text-white text-xs px-4 py-3 rounded-xl shadow-xl flex items-center space-x-2 transition-all duration-300 transform translate-y-2 opacity-0";
+      toast.innerHTML = `<i class="fa-solid fa-circle-info text-amber-400"></i><span>${msg}</span>`;
+      
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
