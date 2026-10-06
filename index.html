@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Laser Studio - In-Store Engraving Station</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Fonts for Engraving Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Inter:wght@400;500;600;700&family=Pacifico&family=Press+Start+2P&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        laser: {
+                            50: '#fff7ed',
+                            400: '#fb923c',
+                            500: '#f97316',
+                            600: '#ea580c',
+                            beam: '#ff2a00'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        cinzel: ['Cinzel', 'serif'],
+                        pacifico: ['Pacifico', 'cursive'],
+                        pixel: ['"Press Start 2P"', 'monospace'],
+                        grotesk: ['Space Grotesk', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Touch safety and smoothness */
+        * {
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        canvas {
+            touch-action: none; /* Prevent scrolling while dragging elements on canvas */
+        }
+
+        /* Custom scrollbars */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Laser beam animation overlay */
+        @keyframes laserScan {
+            0% { top: 0%; opacity: 0.9; }
+            50% { top: 100%; opacity: 1; }
+            100% { top: 0%; opacity: 0.9; }
+        }
+
+        .laser-beam-line {
+            position: absolute;
+            left: -10%;
+            right: -10%;
+            height: 3px;
+            background: #ff3b3b;
+            box-shadow: 0 0 15px 4px #ff3b3b, 0 0 30px 8px #f97316;
+            animation: laserScan 2.2s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: 30;
+        }
+
+        .engrave-burn-effect {
+            filter: contrast(200%) grayscale(100%);
+        }
+    </style>
+</head>
+
+<body class="h-full flex flex-col bg-slate-950 text-slate-100 font-sans antialiased select-none overflow-x-hidden">
+
+    <header class="bg-slate-900/95 border-b border-slate-800 sticky top-0 z-40 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+        <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-laser-500 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-laser-500/20">
+                <i data-lucide="zap" class="w-5 h-5 fill-current"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
+                    LaserStudio
+                    <span class="text-[10px] bg-laser-500/10 text-laser-400 border border-laser-500/20 px-1.5 py-0.5 rounded font-mono font-normal">v1.0 Live</span>
+                </h1>
+                <p class="text-[11px] text-slate-400">Scan & Engrave Customer Station</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- Mobile Instant Testing Guide Trigger Button -->
+            <button id="btn-phone-test" class="bg-gradient-to-r from-laser-500 to-amber-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-md shadow-laser-500/10 active:scale-95 transition">
+                <i data-lucide="smartphone" class="w-4 h-4"></i>
+                Test On Phone
+            </button>
+            <button id="btn-guide" class="p-2 text-slate-400 hover:text-slate-200 bg-slate-800/80 rounded-xl border border-slate-700/60" title="Backend Setup Guide">
+                <i data-lucide="help-circle" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col items-center justify-center p-3 relative overflow-hidden">
+
+        <!-- Active Viewport Canvas Card -->
+        <div class="w-full max-w-sm aspect-square relative rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl flex items-center justify-center p-3 overflow-hidden">
+            
+            <!-- Dynamic Item Mockup Background -->
+            <div id="item-mockup-bg" class="absolute inset-4 rounded-2xl transition-all duration-300 shadow-inner flex items-center justify-center border border-white/10 bg-amber-950/80">
+                <!-- Laser beam line element -->
+                <div id="laser-line" class="laser-beam-line hidden"></div>
+            </div>
+
+            <!-- Main Interactive Canvas -->
+            <canvas id="laser-canvas" class="relative z-10 cursor-grab active:cursor-grabbing rounded-xl"></canvas>
+
+            <!-- Quick Action Floating Overlay Controls -->
+            <div class="absolute top-6 right-6 z-20 flex flex-col gap-1.5">
+                <button id="btn-center-element" class="bg-slate-900/90 border border-slate-700/80 p-2 rounded-xl text-slate-300 active:scale-90 shadow-lg text-xs flex items-center gap-1">
+                    <i data-lucide="align-center" class="w-4 h-4"></i>
+                </button>
+                <button id="btn-clear-canvas" class="bg-rose-950/80 border border-rose-800/80 p-2 rounded-xl text-rose-300 active:scale-90 shadow-lg text-xs flex items-center gap-1">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Empty Canvas Helper Hint -->
+            <div id="empty-hint" class="absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-center p-6 text-center bg-slate-900/60 backdrop-blur-sm rounded-3xl transition-opacity duration-300">
+                <div class="w-12 h-12 rounded-2xl bg-laser-500/10 border border-laser-500/20 text-laser-400 flex items-center justify-center mb-2">
+                    <i data-lucide="sparkles" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xs font-bold text-slate-200">Start Your Custom Design</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Choose an item below, add custom text or upload a photo to preview engraving.</p>
+            </div>
+        </div>
+
+        <!-- Canvas Controls Bar (Scale & Rotate selected element) -->
+        <div id="element-controls" class="w-full max-w-sm mt-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 flex items-center gap-3 hidden">
+            <div class="flex items-center gap-1.5 flex-1">
+                <i data-lucide="maximize-2" class="w-3.5 h-3.5 text-slate-400"></i>
+                <input type="range" id="scale-slider" min="0.3" max="2.5" step="0.05" value="1" class="w-full accent-laser-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+            <div class="flex items-center gap-1.5 flex-1">
+                <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-slate-400"></i>
+                <input type="range" id="rotate-slider" min="-180" max="180" value="0" class="w-full accent-laser-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+        </div>
+
+    </main>
+
+    <section class="bg-slate-900 border-t border-slate-800 rounded-t-3xl shadow-2xl z-30">
+        
+        <!-- Tab Switcher Header -->
+        <div class="flex border-b border-slate-800 px-2 overflow-x-auto no-scrollbar">
+            <button data-tab="tab-items" class="tab-btn active flex-1 min-w-[70px] py-3 text-xs font-medium text-laser-400 border-b-2 border-laser-500 flex flex-col items-center gap-1">
+                <i data-lucide="box" class="w-4 h-4"></i> 1. Blank
+            </button>
+            <button data-tab="tab-text" class="tab-btn flex-1 min-w-[70px] py-3 text-xs font-medium text-slate-400 flex flex-col items-center gap-1">
+                <i data-lucide="type" class="w-4 h-4"></i> 2. Text
+            </button>
+            <button data-tab="tab-image" class="tab-btn flex-1 min-w-[70px] py-3 text-xs font-medium text-slate-400 flex flex-col items-center gap-1">
+                <i data-lucide="image" class="w-4 h-4"></i> 3. Photo
+            </button>
+            <button data-tab="tab-laser" class="tab-btn flex-1 min-w-[70px] py-3 text-xs font-medium text-slate-400 flex flex-col items-center gap-1">
+                <i data-lucide="sliders" class="w-4 h-4"></i> Filter
+            </button>
+        </div>
+
+        <!-- Tab Content Panes -->
+        <div class="p-4 max-w-sm mx-auto h-48 overflow-y-auto no-scrollbar">
+            
+            <!-- TAB 1: Product Blank Selection -->
+            <div id="tab-items" class="tab-pane space-y-2.5">
+                <div class="grid grid-cols-2 gap-2">
+                    <button data-item="keychain" class="item-opt active border-2 border-laser-500 bg-slate-800/90 p-2.5 rounded-2xl text-left flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-amber-900/80 border border-amber-700 flex items-center justify-center text-amber-300 text-lg">🔑</div>
+                        <div>
+                            <div class="text-xs font-bold text-white">Wood Keychain</div>
+                            <div class="text-[10px] text-slate-400">Oak Finish</div>
+                        </div>
+                    </button>
+                    <button data-item="flask" class="item-opt border-2 border-slate-800 hover:border-slate-700 bg-slate-800/40 p-2.5 rounded-2xl text-left flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-slate-700/80 border border-slate-500 flex items-center justify-center text-slate-200 text-lg">🍾</div>
+                        <div>
+                            <div class="text-xs font-bold text-white">Metal Flask</div>
+                            <div class="text-[10px] text-slate-400">Matte Black</div>
+                        </div>
+                    </button>
+                    <button data-item="coaster" class="item-opt border-2 border-slate-800 hover:border-slate-700 bg-slate-800/40 p-2.5 rounded-2xl text-left flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-400 text-lg">☕</div>
+                        <div>
+                            <div class="text-xs font-bold text-white">Leather Coaster</div>
+                            <div class="text-[10px] text-slate-400">Rustic Tan</div>
+                        </div>
+                    </button>
+                    <button data-item="plaque" class="item-opt border-2 border-slate-800 hover:border-slate-700 bg-slate-800/40 p-2.5 rounded-2xl text-left flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-slate-900 border border-cyan-500/40 flex items-center justify-center text-cyan-300 text-lg">🏆</div>
+                        <div>
+                            <div class="text-xs font-bold text-white">Wood Plaque</div>
+                            <div class="text-[10px] text-slate-400">Walnut Board</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 2: Text Tool -->
+            <div id="tab-text" class="tab-pane hidden space-y-3">
+                <div class="flex gap-2">
+                    <input type="text" id="input-text" placeholder="Type text to engrave..." class="flex-1 bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-laser-500">
+                    <button id="btn-add-text" class="bg-laser-500 hover:bg-laser-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 active:scale-95 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Add
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[10px] text-slate-400 font-medium">Font Family</label>
+                        <select id="font-family-select" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-2 mt-1 focus:outline-none">
+                            <option value="Cinzel">Cinzel (Luxury Serif)</option>
+                            <option value="Pacifico">Pacifico (Script)</option>
+                            <option value="Space Grotesk">Space Grotesk (Modern)</option>
+                            <option value="Press Start 2P">Pixel (Retro Retro)</option>
+                            <option value="Inter">Inter (Minimal)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-400 font-medium">Text Presets</label>
+                        <div class="flex gap-1 mt-1">
+                            <button data-preset="NAME / INITIALS" class="preset-btn bg-slate-800 border border-slate-700 text-[10px] py-1.5 px-2 rounded hover:border-laser-500">Initials</button>
+                            <button data-preset="HAPPY BIRTHDAY" class="preset-btn bg-slate-800 border border-slate-700 text-[10px] py-1.5 px-2 rounded hover:border-laser-500">Birthday</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: Photo Upload Tool -->
+            <div id="tab-image" class="tab-pane hidden space-y-3">
+                <label class="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-slate-700 rounded-2xl cursor-pointer bg-slate-800/40 hover:bg-slate-800/80 transition active:scale-98">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="upload-cloud" class="w-5 h-5 text-laser-400"></i>
+                        <span class="text-xs font-semibold text-slate-200">Upload Photo from Phone</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 mt-0.5">Supports JPG, PNG, WEBP</span>
+                    <input id="image-upload-input" type="file" accept="image/*" class="hidden" />
+                </label>
+
+                <div>
+                    <span class="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Or Use Sample Icons</span>
+                    <div class="flex gap-2 mt-1.5">
+                        <button data-icon="🦁" class="emoji-sample-btn bg-slate-800 border border-slate-700 p-2 rounded-xl text-lg hover:border-laser-500 flex-1 flex justify-center">🦁</button>
+                        <button data-icon="⚡" class="emoji-sample-btn bg-slate-800 border border-slate-700 p-2 rounded-xl text-lg hover:border-laser-500 flex-1 flex justify-center">⚡</button>
+                        <button data-icon="👑" class="emoji-sample-btn bg-slate-800 border border-slate-700 p-2 rounded-xl text-lg hover:border-laser-500 flex-1 flex justify-center">👑</button>
+                        <button data-icon="🦅" class="emoji-sample-btn bg-slate-800 border border-slate-700 p-2 rounded-xl text-lg hover:border-laser-500 flex-1 flex justify-center">🦅</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: Laser Thresholding Controls -->
+            <div id="tab-laser" class="tab-pane hidden space-y-3">
+                <div>
+                    <div class="flex justify-between text-xs text-slate-300 mb-1">
+                        <span>Laser Burn Contrast</span>
+                        <span id="val-threshold" class="text-laser-400 font-mono">128</span>
+                    </div>
+                    <input type="range" id="slider-threshold" min="30" max="220" value="128" class="w-full accent-laser-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                </div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <div>
+                        <div class="text-xs font-medium text-slate-200">Invert Laser Burn</div>
+                        <div class="text-[10px] text-slate-400">Engrave background instead</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-invert" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-laser-500"></div>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Action Bar (Send to Machine) -->
+        <div class="p-3 border-t border-slate-800 bg-slate-900/90 flex gap-2 max-w-sm mx-auto">
+            <button id="btn-preview-burn" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 transition">
+                <i data-lucide="flame" class="w-4 h-4 text-laser-400"></i>
+                Simulate
+            </button>
+            <button id="btn-send-order" class="flex-1 bg-gradient-to-r from-laser-500 to-amber-500 text-slate-950 font-black px-4 py-3 rounded-2xl text-xs tracking-wide uppercase flex items-center justify-center gap-2 shadow-lg shadow-laser-500/20 active:scale-95 transition">
+                <i data-lucide="send" class="w-4 h-4 fill-current"></i>
+                Send to Laser System
+            </button>
+        </div>
+    </section>
+
+    <div id="modal-phone-test" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto no-scrollbar">
+            <button class="close-modal absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-2xl bg-laser-500/10 border border-laser-500/30 flex items-center justify-center text-laser-400">
+                    <i data-lucide="qr-code" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm text-white">How to Test on Your Phone Right Now</h3>
+                    <p class="text-[11px] text-slate-400">Choose Option A (Instant 30s) or Option B (Free GitHub Host)</p>
+                </div>
+            </div>
+
+            <!-- Option A: Tunneling -->
+            <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-2xl space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-laser-400">Option A: Instant Local Tunnel (No setup needed)</span>
+                    <span class="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">Fastest</span>
+                </div>
+                <p class="text-[11px] text-slate-300 leading-relaxed">If you are editing code locally on PC, run one of these tools in your project folder to generate a QR code for your phone instantly:</p>
+                <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800 font-mono text-[10px] text-amber-300 space-y-1">
+                    <div># Method 1 (Node npx localtunnel)</div>
+                    <div class="text-white">npx localtunnel --port 5500</div>
+                    <div class="text-slate-500 pt-1"># Method 2 (Cloudflare Tunnel)</div>
+                    <div class="text-white">npx cloudflared tunnel --url http://localhost:5500</div>
+                </div>
+                <p class="text-[10px] text-slate-400">Open the output URL or scan its QR code on your phone camera!</p>
+            </div>
+
+            <!-- Option B: GitHub Pages Host -->
+            <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-2xl space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-amber-400">Option B: Free Permanent Web URL (GitHub Pages)</span>
+                </div>
+                <ol class="list-decimal list-inside text-[11px] text-slate-300 space-y-1.5">
+                    <li>Create a free repository at <b class="text-white">GitHub.com</b>.</li>
+                    <li>Upload this single file as <code class="text-laser-400 font-mono">index.html</code>.</li>
+                    <li>Go to <b class="text-white">Settings &rarr; Pages</b>, set Branch to <code class="text-laser-400 font-mono">main</code>, and click Save.</li>
+                    <li>In 1 minute, your app will be live on your phone via your GitHub Pages URL!</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-order" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl relative">
+            <button class="close-modal absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 bg-laser-500/10 border border-laser-500/30 rounded-2xl flex items-center justify-center mx-auto text-laser-400 mb-2">
+                    <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-base font-bold text-white">Order Sent to Laser Queue!</h3>
+                <p class="text-[11px] text-slate-400">Your custom design is transferred directly to our shop engraving operator.</p>
+            </div>
+
+            <div class="bg-slate-950 rounded-2xl p-3 border border-slate-800 text-xs space-y-2">
+                <div class="flex justify-between border-b border-slate-800/80 pb-1.5">
+                    <span class="text-slate-400">Job Reference:</span>
+                    <span id="order-id-val" class="font-mono font-bold text-laser-400">#ENG-9021</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">Material Blank:</span>
+                    <span id="order-material-val" class="font-medium text-slate-200">Wooden Keychain</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">Est. Laser Time:</span>
+                    <span class="font-medium text-emerald-400">1 min 20 sec</span>
+                </div>
+            </div>
+
+            <button id="btn-show-payload" class="w-full bg-slate-800 hover:bg-slate-700 text-xs text-laser-400 py-2.5 rounded-xl font-bold border border-slate-700 flex items-center justify-center gap-1.5">
+                <i data-lucide="code" class="w-4 h-4"></i> View Cloudflare Machine Payload JSON
+            </button>
+        </div>
+    </div>
+
+    <!-- Payload JSON Modal -->
+    <div id="modal-payload" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-5 space-y-3 shadow-2xl relative">
+            <button class="close-modal absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex items-center gap-2">
+                <i data-lucide="terminal" class="w-5 h-5 text-laser-400"></i>
+                <h3 class="font-bold text-sm text-white">Cloudflare Worker Payload</h3>
+            </div>
+
+            <p class="text-[11px] text-slate-400">This JSON data structure is posted directly to your backend endpoint for laser software consumption:</p>
+
+            <pre id="payload-json-code" class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-[10px] font-mono text-emerald-400 overflow-x-auto h-48 no-scrollbar select-text"></pre>
+
+            <button id="btn-copy-json" class="w-full bg-laser-500 hover:bg-laser-600 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                <i data-lucide="copy" class="w-4 h-4"></i> Copy API JSON Payload
+            </button>
+        </div>
+    </div>
+
+    <!-- Backend Architecture Guide Modal -->
+    <div id="modal-guide" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto no-scrollbar">
+            <button class="close-modal absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex items-center gap-2.5 border-b border-slate-800 pb-3">
+                <i data-lucide="cloud" class="w-6 h-6 text-laser-400"></i>
+                <div>
+                    <h3 class="font-bold text-sm text-white">Free Backend Architecture</h3>
+                    <p class="text-[11px] text-slate-400">GitHub Pages + Cloudflare Workers / KV</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+                <div class="bg-laser-500/10 border border-laser-500/20 rounded-2xl p-3 text-laser-200 text-[11px]">
+                    <b>💡 Zero-Cost Flow:</b>
+                    Customer Phone &rarr; GitHub Pages App &rarr; Cloudflare Worker API &rarr; Store Laser Laptop
+                </div>
+
+                <h4 class="font-bold text-laser-400 text-[11px] uppercase tracking-wider">Cloudflare Worker Sample Code</h4>
+                <pre class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[10px] font-mono text-amber-300 overflow-x-auto">
+export default {
+  async fetch(request, env) {
+    if (request.method === "POST") {
+      const jobData = await request.json();
+      await env.LASER_JOBS.put(jobData.jobId, JSON.stringify(jobData));
+      return new Response(JSON.stringify({ status: "success", id: jobData.jobId }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  }
+};</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas Engine & State
+        const canvas = document.getElementById('laser-canvas');
+        const ctx = canvas.getContext('2d');
+        const mockupBg = document.getElementById('item-mockup-bg');
+        const emptyHint = document.getElementById('empty-hint');
+        const controlsBar = document.getElementById('element-controls');
+
+        // Items Configuration
+        const ITEMS = {
+            keychain: { name: "Wooden Keychain", bgClass: "bg-amber-900/80", shape: "rounded" },
+            flask: { name: "Metal Matte Flask", bgClass: "bg-slate-800", shape: "flask" },
+            coaster: { name: "Leather Coaster", bgClass: "bg-amber-950", shape: "circle" },
+            plaque: { name: "Wood Plaque", bgClass: "bg-slate-900", shape: "square" }
+        };
+
+        let currentItem = 'keychain';
+        let canvasElements = [];
+        let selectedElement = null;
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        let laserContrast = 128;
+        let laserInvert = false;
+
+        function initCanvas() {
+            const container = canvas.parentElement;
+            const size = Math.min(container.clientWidth - 32, 320);
+            
+            canvas.width = size;
+            canvas.height = size;
+
+            updateMockupBg();
+            renderCanvas();
+        }
+
+        function updateMockupBg() {
+            const item = ITEMS[currentItem];
+            mockupBg.className = `absolute inset-4 rounded-2xl transition-all duration-300 shadow-inner flex items-center justify-center border border-white/10 ${item.bgClass}`;
+            
+            if (item.shape === 'circle') {
+                mockupBg.classList.add('rounded-full');
+            } else if (item.shape === 'flask') {
+                mockupBg.classList.add('rounded-t-3xl', 'rounded-b-lg');
+            }
+            renderCanvas();
+        }
+
+        function renderCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Engraving Area Boundary
+            ctx.strokeStyle = 'rgba(249, 115, 22, 0.25)';
+            ctx.setLineDash([4, 4]);
+            ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+            ctx.setLineDash([]);
+
+            // Draw Canvas Elements
+            canvasElements.forEach(el => {
+                ctx.save();
+                ctx.translate(el.x, el.y);
+                ctx.rotate((el.rotation || 0) * Math.PI / 180);
+
+                if (el.type === 'text') {
+                    ctx.font = `700 ${el.size * (el.scale || 1)}px "${el.fontFamily}"`;
+                    ctx.fillStyle = '#1e1b18'; // Dark engrave burn tone
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    // Subtle burn texture drop shadow
+                    ctx.shadowColor = 'rgba(249, 115, 22, 0.3)';
+                    ctx.shadowBlur = 2;
+
+                    ctx.fillText(el.text, 0, 0);
+                } else if (el.type === 'image' && el.processedImg) {
+                    const w = el.width * el.scale;
+                    const h = el.height * el.scale;
+                    ctx.drawImage(el.processedImg, -w / 2, -h / 2, w, h);
+                }
+
+                // Selection Ring
+                if (el === selectedElement) {
+                    ctx.strokeStyle = '#f97316';
+                    ctx.lineWidth = 1.5;
+                    const w = el.type === 'text' ? ctx.measureText(el.text).width + 12 : el.width * el.scale + 8;
+                    const h = el.type === 'text' ? (el.size * el.scale) + 8 : el.height * el.scale + 8;
+                    ctx.strokeRect(-w / 2, -h / 2, w, h);
+                }
+
+                ctx.restore();
+            });
+
+            // Toggle empty helper text
+            emptyHint.style.opacity = canvasElements.length === 0 ? '1' : '0';
+            emptyHint.style.pointerEvents = canvasElements.length === 0 ? 'auto' : 'none';
+
+            // Show or hide transformation sliders
+            if (selectedElement) {
+                controlsBar.classList.remove('hidden');
+                document.getElementById('scale-slider').value = selectedElement.scale || 1;
+                document.getElementById('rotate-slider').value = selectedElement.rotation || 0;
+            } else {
+                controlsBar.classList.add('hidden');
+            }
+        }
+
+        // Processing Image for Engraving Effect (Binarization)
+        function processEngravingFilter(img, threshold, invert) {
+            const offscreen = document.createElement('canvas');
+            offscreen.width = img.width;
+            offscreen.height = img.height;
+            const oCtx = offscreen.getContext('2d');
+
+            oCtx.drawImage(img, 0, 0);
+            const imgData = oCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+            const data = imgData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                let bit = gray >= threshold ? 255 : 0;
+                if (invert) bit = 255 - bit;
+
+                if (bit === 0) {
+                    data[i] = 25;     // Dark burn color
+                    data[i + 1] = 20;
+                    data[i + 2] = 15;
+                    data[i + 3] = 225;
+                } else {
+                    data[i + 3] = 0; // Transparent
+                }
+            }
+
+            oCtx.putImageData(imgData, 0, 0);
+            return offscreen;
+        }
+
+        function reprocessAllImages() {
+            canvasElements.forEach(el => {
+                if (el.type === 'image' && el.originalImg) {
+                    el.processedImg = processEngravingFilter(el.originalImg, laserContrast, laserInvert);
+                }
+            });
+            renderCanvas();
+        }
+
+        // Pointer & Touch Events
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function handlePointerDown(e) {
+            const pos = getPos(e);
+            selectedElement = null;
+
+            for (let i = canvasElements.length - 1; i >= 0; i--) {
+                const el = canvasElements[i];
+                const dx = pos.x - el.x;
+                const dy = pos.y - el.y;
+
+                let hit = false;
+                if (el.type === 'text') {
+                    ctx.font = `700 ${el.size * el.scale}px "${el.fontFamily}"`;
+                    const w = ctx.measureText(el.text).width;
+                    if (Math.abs(dx) < w / 2 + 10 && Math.abs(dy) < (el.size * el.scale) / 2 + 10) hit = true;
+                } else if (el.type === 'image') {
+                    const w = el.width * el.scale;
+                    const h = el.height * el.scale;
+                    if (Math.abs(dx) < w / 2 && Math.abs(dy) < h / 2) hit = true;
+                }
+
+                if (hit) {
+                    selectedElement = el;
+                    isDragging = true;
+                    dragOffsetX = dx;
+                    dragOffsetY = dy;
+                    break;
+                }
+            }
+            renderCanvas();
+        }
+
+        function handlePointerMove(e) {
+            if (!isDragging || !selectedElement) return;
+            const pos = getPos(e);
+            selectedElement.x = pos.x - dragOffsetX;
+            selectedElement.y = pos.y - dragOffsetY;
+            renderCanvas();
+        }
+
+        function handlePointerUp() { isDragging = false; }
+
+        // Tab Event Listeners
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('text-laser-400', 'border-b-2', 'border-laser-500');
+                    b.classList.add('text-slate-400');
+                });
+                btn.classList.add('text-laser-400', 'border-b-2', 'border-laser-500');
+                btn.classList.remove('text-slate-400');
+
+                document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+                document.getElementById(btn.dataset.tab).classList.remove('hidden');
+            });
+        });
+
+        // Product Selector Listeners
+        document.querySelectorAll('.item-opt').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.item-opt').forEach(b => {
+                    b.classList.remove('border-laser-500', 'bg-slate-800/90');
+                    b.classList.add('border-slate-800');
+                });
+                btn.classList.add('border-laser-500', 'bg-slate-800/90');
+                btn.classList.remove('border-slate-800');
+
+                currentItem = btn.dataset.item;
+                updateMockupBg();
+            });
+        });
+
+        // Add Text
+        document.getElementById('btn-add-text').addEventListener('click', () => {
+            const input = document.getElementById('input-text');
+            const val = input.value.trim();
+            if (!val) return;
+
+            const font = document.getElementById('font-family-select').value;
+            const textEl = {
+                id: Date.now(),
+                type: 'text',
+                text: val,
+                fontFamily: font,
+                size: 22,
+                scale: 1,
+                rotation: 0,
+                x: canvas.width / 2,
+                y: canvas.height / 2
+            };
+
+            canvasElements.push(textEl);
+            selectedElement = textEl;
+            input.value = '';
+            renderCanvas();
+        });
+
+        // Text Presets
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('input-text').value = btn.dataset.preset;
+            });
+        });
+
+        // Image Upload
+        document.getElementById('image-upload-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const maxDim = canvas.width * 0.5;
+                    const scale = Math.min(maxDim / img.width, maxDim / img.height);
+
+                    const imgEl = {
+                        id: Date.now(),
+                        type: 'image',
+                        originalImg: img,
+                        processedImg: null,
+                        width: img.width,
+                        height: img.height,
+                        scale: scale,
+                        rotation: 0,
+                        x: canvas.width / 2,
+                        y: canvas.height / 2
+                    };
+
+                    imgEl.processedImg = processEngravingFilter(img, laserContrast, laserInvert);
+                    canvasElements.push(imgEl);
+                    selectedElement = imgEl;
+                    renderCanvas();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Emoji Samples
+        document.querySelectorAll('.emoji-sample-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const iconEl = {
+                    id: Date.now(),
+                    type: 'text',
+                    text: btn.dataset.icon,
+                    fontFamily: 'Inter',
+                    size: 48,
+                    scale: 1,
+                    rotation: 0,
+                    x: canvas.width / 2,
+                    y: canvas.height / 2
+                };
+                canvasElements.push(iconEl);
+                selectedElement = iconEl;
+                renderCanvas();
+            });
+        });
+
+        // Sliders
+        document.getElementById('scale-slider').addEventListener('input', (e) => {
+            if (selectedElement) {
+                selectedElement.scale = parseFloat(e.target.value);
+                renderCanvas();
+            }
+        });
+
+        document.getElementById('rotate-slider').addEventListener('input', (e) => {
+            if (selectedElement) {
+                selectedElement.rotation = parseInt(e.target.value);
+                renderCanvas();
+            }
+        });
+
+        document.getElementById('slider-threshold').addEventListener('input', (e) => {
+            laserContrast = parseInt(e.target.value);
+            document.getElementById('val-threshold').innerText = laserContrast;
+            reprocessAllImages();
+        });
+
+        document.getElementById('toggle-invert').addEventListener('change', (e) => {
+            laserInvert = e.target.checked;
+            reprocessAllImages();
+        });
+
+        // Helper Buttons
+        document.getElementById('btn-center-element').addEventListener('click', () => {
+            if (selectedElement) {
+                selectedElement.x = canvas.width / 2;
+                selectedElement.y = canvas.height / 2;
+                renderCanvas();
+            }
+        });
+
+        document.getElementById('btn-clear-canvas').addEventListener('click', () => {
+            canvasElements = [];
+            selectedElement = null;
+            renderCanvas();
+        });
+
+        // Laser Simulation Line
+        document.getElementById('btn-preview-burn').addEventListener('click', () => {
+            const line = document.getElementById('laser-line');
+            line.classList.remove('hidden');
+            setTimeout(() => line.classList.add('hidden'), 2500);
+        });
+
+        // Order Trigger
+        document.getElementById('btn-send-order').addEventListener('click', () => {
+            if (canvasElements.length === 0) {
+                alert("Please add at least one design item or text before sending.");
+                return;
+            }
+
+            const ref = "#ENG-" + Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('order-id-val').innerText = ref;
+            document.getElementById('order-material-val').innerText = ITEMS[currentItem].name;
+            document.getElementById('modal-order').classList.remove('hidden');
+        });
+
+        document.getElementById('btn-show-payload').addEventListener('click', () => {
+            const payload = {
+                timestamp: new Date().toISOString(),
+                jobId: document.getElementById('order-id-val').innerText,
+                itemBlank: ITEMS[currentItem],
+                laserSettings: {
+                    speed: 300,
+                    power: 60,
+                    contrastThreshold: laserContrast,
+                    invertBurn: laserInvert
+                },
+                designElements: canvasElements.map(el => ({
+                    id: el.id,
+                    type: el.type,
+                    x: Math.round(el.x),
+                    y: Math.round(el.y),
+                    rotation: el.rotation || 0,
+                    scale: el.scale || 1,
+                    text: el.text || null,
+                    fontFamily: el.fontFamily || null
+                }))
+            };
+
+            document.getElementById('payload-json-code').innerText = JSON.stringify(payload, null, 2);
+            document.getElementById('modal-order').classList.add('hidden');
+            document.getElementById('modal-payload').classList.remove('hidden');
+        });
+
+        // Modal triggers
+        document.getElementById('btn-phone-test').addEventListener('click', () => {
+            document.getElementById('modal-phone-test').classList.remove('hidden');
+        });
+
+        document.getElementById('btn-guide').addEventListener('click', () => {
+            document.getElementById('modal-guide').classList.remove('hidden');
+        });
+
+        document.querySelectorAll('.close-modal').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.closest('.fixed').classList.add('hidden');
+            });
+        });
+
+        document.getElementById('btn-copy-json').addEventListener('click', () => {
+            const txt = document.getElementById('payload-json-code').innerText;
+            navigator.clipboard.writeText(txt);
+            alert("Payload JSON copied to clipboard!");
+        });
+
+        // Canvas Handlers
+        canvas.addEventListener('mousedown', handlePointerDown);
+        canvas.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+
+        canvas.addEventListener('touchstart', handlePointerDown);
+        canvas.addEventListener('touchmove', handlePointerMove);
+        window.addEventListener('touchend', handlePointerUp);
+
+        window.onload = () => {
+            lucide.createIcons();
+            initCanvas();
+        };
+
+        window.addEventListener('resize', initCanvas);
+    </script>
+</body>
+</html>
